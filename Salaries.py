@@ -4,6 +4,7 @@
 """
 import numpy as np
 import pandas as pd
+import random
 import plotly.express as px
 import plotly.figure_factory as ff
 from plotly.offline import plot
@@ -15,6 +16,16 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.model_selection import GridSearchCV
+
+from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline
+from sklearn.manifold import TSNE
+np.random.seed(24)
 
 def plots(df):
     Salary = df["salary_in_usd"]
@@ -114,7 +125,7 @@ def remove_outliers_iqr(data, col,multiplier=1.5):
     return filtered_data
 
 #Load the data
-np.random.seed(77)
+
 data = pd.read_csv("ds_salaries.csv")
 
 #EDA
@@ -163,34 +174,41 @@ plots(data)
 
 
 #Since the data is right skewed , we use the IRQ method instead of Z-Score for removing outliers
+
+    
+def salary_range_models(data):
+    quantiles = [0, 1/8, 1/4, 3/8, 1/2, 5/8, 3/4, 7/8, 1]
+    bin_edges = [filtered_data['salary_in_usd'].quantile(q) for q in quantiles]
+    salary_labels = ['1', '2', '3', '4', '5', '6', '7' , '8']
+    data['salary_range'] = pd.cut(data['salary_in_usd'], bins=bin_edges, labels=salary_labels, include_lowest=True)
+    y = data['salary_range']
+    data = data.drop(['salary_range'], axis=1)
+    X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=0.2)
+
+    classifiers = [
+        ('Logistic Regression', LogisticRegression(max_iter=1000)),
+        ('Random Forest', RandomForestClassifier()),
+        ('Gradient Boosting', HistGradientBoostingClassifier())
+        ]
+    accuracies = []
+    for name, clf in classifiers:
+        pipeline = Pipeline([('scaler', StandardScaler()), ('clf', clf)])
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        print(f"{name} - Accuracy: {accuracy:.2f}")
+        accuracies.append(accuracy)
+    return accuracies
+
 df = data.copy()
 filtered_data = remove_outliers_iqr(df,'salary_in_usd')
-
 filtered_data = filtered_data.drop(['work_year','job_title'], axis=1)
-y = filtered_data["salary_in_usd"]
 categorical_features = ['experience_level', 'employment_type', 'employee_residence', 'company_location', 'company_size', 'remote_ratio']
 encoder = LabelEncoder()
 for feature in categorical_features:
     filtered_data[feature] = encoder.fit_transform(filtered_data[feature])
+salary_range_models(filtered_data)
 
 
 
-
-X_train, X_test, y_train, y_test = train_test_split(filtered_data, y, test_size=0.2)
-
-classifiers = [
-    ('Logistic Regression', LogisticRegression(max_iter=1000)),
-    ('Random Forest', RandomForestClassifier()),
-    ('Gradient Boosting', HistGradientBoostingClassifier())
-    ]
-
-
-
-
-
-
-for name, clf in classifiers:
-    clf.fit(X_train, y_train)
-    score = clf.score(X_test, y_test)
-    print(name, round(score * 100, 2))
 
