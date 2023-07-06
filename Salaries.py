@@ -16,8 +16,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.model_selection import GridSearchCV
 
-
-
 def plots(df):
     Salary = df["salary_in_usd"]
     name = df["salary_in_usd"].name
@@ -89,6 +87,31 @@ def plots(df):
     Rfig6 = px.choropleth(mean_salary_location, locations='company_location', locationmode='country names',
                     color='salary_in_usd', title='Average Salary by Company Location')
     Rfig6.write_html("SalaryBylocation.html")
+    
+def remove_outliers_zscore(data, threshold=3):
+    # Compute the z-scores for each data point
+    z_scores = np.abs((data - data.mean()) / data.std())
+
+    # Filter out the data points that have a z-score greater than the threshold
+    filtered_data = data[z_scores <= threshold]
+
+    return filtered_data
+
+
+def remove_outliers_iqr(data, col,multiplier=1.5):
+    # Calculate the IQR (Interquartile Range)
+    q1 = data[col].quantile(0.25)
+    q3 = data[col].quantile(0.75)
+    iqr = q3 - q1
+
+    # Define the upper and lower bounds
+    # Lower bound is negative here since the salary is right-skewed
+    lower_bound = q1 - multiplier * iqr
+    upper_bound = q3 + multiplier * iqr
+
+    # Filter out the data points that fall outside the bounds
+    filtered_data = data[~((data[col] < lower_bound) | (data[col] > upper_bound))]
+    return filtered_data
 
 #Load the data
 np.random.seed(77)
@@ -135,5 +158,39 @@ The target variable is salary_in_usd
 """
 plots(data)
 
+#Building a Machine Learning Model
 
+
+
+#Since the data is right skewed , we use the IRQ method instead of Z-Score for removing outliers
+df = data.copy()
+filtered_data = remove_outliers_iqr(df,'salary_in_usd')
+
+filtered_data = filtered_data.drop(['work_year','job_title'], axis=1)
+y = filtered_data["salary_in_usd"]
+categorical_features = ['experience_level', 'employment_type', 'employee_residence', 'company_location', 'company_size', 'remote_ratio']
+encoder = LabelEncoder()
+for feature in categorical_features:
+    filtered_data[feature] = encoder.fit_transform(filtered_data[feature])
+
+
+
+
+X_train, X_test, y_train, y_test = train_test_split(filtered_data, y, test_size=0.2)
+
+classifiers = [
+    ('Logistic Regression', LogisticRegression(max_iter=1000)),
+    ('Random Forest', RandomForestClassifier()),
+    ('Gradient Boosting', HistGradientBoostingClassifier())
+    ]
+
+
+
+
+
+
+for name, clf in classifiers:
+    clf.fit(X_train, y_train)
+    score = clf.score(X_test, y_test)
+    print(name, round(score * 100, 2))
 
